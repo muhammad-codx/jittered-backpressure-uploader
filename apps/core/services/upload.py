@@ -1,30 +1,29 @@
+from apps.core.models.jbu_db import Data
 import time
+import logging
 from config.jitter_settings import JITTER_CONFIG
 from config.jitter import jitter
 
-class JitteredBackpressureUploader:
-    def __init__(self, task_type="db_sync"):
-        self.task_type = task_type
+logger = logging.getLogger(__name__)
 
-    def flush_buffer_to_destination(self, data_chunk):
-        """
-        Keshdagi ma'lumotlarni manzilga yuklash (upload) funksiyasi
-        """
-        # 2. Config'dan loyiha uchun belgilangan BASE_DELAY ni olamiz (Masalan: 10.0)
-        base_delay = JITTER_CONFIG[self.task_type]["BASE_DELAY"]
-        
-        # 3. KELTIRILGAN SHU BASE_DELAY NI `quantity` SIFATIDA BERIB YUBORAMIZ:
-        # Funksiya bizga 5.0 va 10.0 sekund oralig'ida float qiymat qaytaradi (Masalan: 7.34)
+class DataService:
+    @staticmethod
+    def create_data(validated_data):
+        return Data.objects.create(**validated_data)
+
+class JitteredBackpressureService:
+    @staticmethod
+    def upload_data(task_type, data_chunk):
+        task_config = JITTER_CONFIG.get(task_type)
+        if not task_config:
+            raise ValueError(f"'{task_type}' uchun konfiguratsiya topilmadi!")
+
+        base_delay = task_config.get("BASE_DELAY", 5.0)
         calculated_delay = jitter(quantity=base_delay)
         
-        print(f"[JBU] Backpressure ishga tushdi. Server yuklamasini kamaytirish uchun {calculated_delay:.2f}s kutilmoqda...")
-        
-        # 4. Tizimni dynamic hisoblangan vaqt davomida to'xtatib turamiz
+        logger.info(f"[JBU] {task_type} uchun {calculated_delay:.2f}s kechikish.")
         time.sleep(calculated_delay)
         
-        # 5. Kutish tugagach, yuklash (upload) bajariladi
-        self._execute_upload(data_chunk)
-
-    def _execute_upload(self, data):
-        # Haqiqiy yuklash kodi shu yerda bo'ladi
-        print("[JBU] Ma'lumotlar muvaffaqiyatli yuklandi!")
+        # Bu yerda ma'lumotni yuklash mantiqi
+        print(f"[JBU] Yuklandi: {data_chunk}")
+        return True
